@@ -33,16 +33,16 @@ def sample_trajectory(env, policy, max_path_length, render=False):
             image_obs.append(cv2.resize(img, dsize=(250, 250), interpolation=cv2.INTER_CUBIC))
     
         # TODO use the most recent ob to decide what to do
-        ac = TODO # HINT: this is a numpy array
-        ac = ac[0]
+        ac = policy.get_action(ob) # HINT: this is a numpy array
+        ac = ac[0]  # 解包ac的形状：(1, action_dim) → (action_dim，)
 
         # TODO: take that action and get reward and next ob
-        next_ob, rew, done, _ = TODO
+        next_ob, rew, done, _ = env.step(ac) # env.step(action)返回四元组(observation, reward, done, info额外调试信息)
         
         # TODO rollout can end due to done, or due to max_path_length
         steps += 1
-        rollout_done = TODO # HINT: this is either 0 or 1
-        
+        rollout_done = done or steps >= max_path_length # HINT: this is either 0 or 1
+        # print(f"*********\nob: {ob.shape}, ac: {ac.shape}, rew: {rew}, next_ob: {next_ob.shape}, rollout_done: {rollout_done}\n*********")
         # record result of taking that action
         obs.append(ob)
         acs.append(ac)
@@ -77,7 +77,6 @@ def sample_trajectories(env, policy, min_timesteps_per_batch, max_path_length, r
 
         #count steps
         timesteps_this_batch += get_pathlength(path)
-
     return paths, timesteps_this_batch
 
 
@@ -101,6 +100,35 @@ def convert_listofrollouts(paths, concat_rew=True):
         Take a list of rollout dictionaries
         and return separate arrays,
         where each array is a concatenation of that array from across the rollouts
+        
+        举例：
+        输入 (paths):
+        paths = [
+            {  # 轨迹1
+                'observation': [[obs1], [obs2], [obs3]],
+                'action': [[act1], [act2], [act3]],
+                'reward': [r1, r2, r3],
+                'terminal': [False, False, True]
+            },
+            {  # 轨迹2
+                'observation': [[obs4], [obs5]],
+                'action': [[act4], [act5]], 
+                'reward': [r4, r5],
+                'terminal': [False, True]
+            }
+        ]
+        
+        输出：
+        observations = [[obs1], [obs2], [obs3], [obs4], [obs5]]      # 展平后的观测
+        actions = [[act1], [act2], [act3], [act4], [act5]]           # 展平后的动作
+        if concat_rew:
+            # rewards 是 numpy 数组，可以直接 concatenate
+            rewards = [r1, r2, r3, r4, r5]                               # 输出是numpy数组，所有数据展平
+        else:
+            # rewards 是列表，需要特殊处理
+            rewards = [np.array([1.0, 2.0, 3.0]), np.array([4.0, 5.0]), ...]  # 输出是Python列表，保持轨迹分组
+        next_observations = [[obs2], [obs3], [obs4], [obs5], [obs_terminal]] # 下一步观测
+        terminals = [False, False, True, False, True]                # 终止标志
     """
     observations = np.concatenate([path["observation"] for path in paths])
     actions = np.concatenate([path["action"] for path in paths])

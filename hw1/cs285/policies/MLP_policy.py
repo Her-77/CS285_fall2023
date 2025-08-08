@@ -129,7 +129,11 @@ class MLPPolicySL(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         # through it. For example, you can return a torch.FloatTensor. You can also
         # return more flexible objects, such as a
         # `torch.distributions.Distribution` object. It's up to you!
-        raise NotImplementedError
+        # raise NotImplementedError
+        mean = self.mean_net(observation)
+        std = torch.exp(self.logstd)
+        policy_distribution = torch.distributions.normal.Normal(mean, std)
+        return policy_distribution
 
     def update(self, observations, actions):
         """
@@ -141,8 +145,24 @@ class MLPPolicySL(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
             dict: 'Training Loss': supervised learning loss
         """
         # TODO: update the policy and return the loss
-        loss = TODO
+        self.optimizer.zero_grad()
+        policy_distribution = self.forward(observations)
+        log_likelihood = policy_distribution.log_prob(actions)
+        loss = -log_likelihood.mean()  
+        # 等价于 loss = -log_likelihood.sum(dim=1).mean()
+        # 首先计算每一个数据点，对应的完整的多维专家动作的“总对数似然”，(batch_size, action_dim) —> (batch_size,)
+        # 然后计算的是这一个batch中，所有样本的“总对数似然”的平均值，(batch_size,) -> 标量
+        loss.backward()
+        self.optimizer.step()
         return {
             # You can add extra logging information here, but keep this line
             'Training Loss': ptu.to_numpy(loss),
         }
+        
+    def get_action(self, obs: np.ndarray) -> np.ndarray:
+        if obs.ndim == 1:
+            obs = obs[None, :]
+        obs_tensor = ptu.from_numpy(obs)
+        actions_tensor = self.forward(obs_tensor).sample()
+        actions_numpy = ptu.to_numpy(actions_tensor)
+        return actions_numpy

@@ -126,13 +126,21 @@ def run_training_loop(params):
             # BC training from expert data.
             paths = pickle.load(open(params['expert_data'], 'rb'))
             envsteps_this_batch = 0
+            print(f"BC paths len: {len(paths)}")
+            print(f"BC paths[0] len: {len(paths[0])}")
+            print(f"BC paths[0]['observation'] shape: {paths[0]['observation'].shape}")
+            print(f"BC paths[0]['action'] shape: {paths[0]['action'].shape}")
+            print(f"BC paths[0]['reward'] shape: {paths[0]['reward'].shape}")
+            print(f"BC paths[0]['next_observation'] shape: {paths[0]['next_observation'].shape}")
+            print(f"BC paths[0]['terminal'] shape: {paths[0]['terminal'].shape}")
         else:
             # DAGGER training from sampled data relabeled by expert
             assert params['do_dagger']
             # TODO: collect `params['batch_size']` transitions
             # HINT: use utils.sample_trajectories
             # TODO: implement missing parts of utils.sample_trajectory
-            paths, envsteps_this_batch = TODO
+            # 用当前正在训练的策略actor去探索环境，收集它容易犯错的状态
+            paths, envsteps_this_batch = utils.sample_trajectories(env, actor, params['batch_size'], params['ep_len'])
 
             # relabel the collected obs with actions from a provided expert policy
             if params['do_dagger']:
@@ -141,7 +149,8 @@ def run_training_loop(params):
                 # TODO: relabel collected obsevations (from our policy) with labels from expert policy
                 # HINT: query the policy (using the get_action function) with paths[i]["observation"]
                 # and replace paths[i]["action"] with these expert labels
-                paths = TODO
+                for path in paths:  
+                    path["action"] = expert_policy.get_action(path["observation"])
 
         total_envsteps += envsteps_this_batch
         # add collected data to replay buffer
@@ -157,11 +166,14 @@ def run_training_loop(params):
           # HINT2: use np.random.permutation to sample random indices
           # HINT3: return corresponding data points from each array (i.e., not different indices from each array)
           # for imitation learning, we only need observations and actions.  
-          ob_batch, ac_batch = TODO
+          random_indices = np.random.permutation(len(replay_buffer))
+          batch_indices = random_indices[:params['train_batch_size']]
+          ob_batch, ac_batch = ptu.from_numpy(replay_buffer.obs[batch_indices]), ptu.from_numpy(replay_buffer.acs[batch_indices])
 
           # use the sampled data to train an agent
           train_log = actor.update(ob_batch, ac_batch)
           training_logs.append(train_log)
+        #   print(f"train_log: {train_log}")
 
         # log/save
         print('\nBeginning logging procedure...')
@@ -173,6 +185,7 @@ def run_training_loop(params):
 
             # save videos
             if eval_video_paths is not None:
+                print("--- Trying to save video ---")
                 logger.log_paths_as_videos(
                     eval_video_paths, itr,
                     fps=fps,
@@ -215,15 +228,34 @@ def main():
     parser.add_argument('--exp_name', '-exp', type=str, default='pick an experiment name', required=True)
     parser.add_argument('--do_dagger', action='store_true')
     parser.add_argument('--ep_len', type=int)
+    # ep_len (Episode Length)
+    # 含义：每个单挑轨迹 episode（回合）的最大步数
+    # 作用：控制智能体在环境中单次交互的最长时间，主要影响数据收集和评估过程，而不是训练过程本身
 
     parser.add_argument('--num_agent_train_steps_per_iter', type=int, default=1000)  # number of gradient steps for training policy (per iter in n_iter)
+    # “训练步数”，即梯度更新的次数
+    
     parser.add_argument('--n_iter', '-n', type=int, default=1)
+    # BC算法：通常为1（只用专家数据训练一次）
+    # DAgger算法：>1（迭代收集数据和训练）
 
     parser.add_argument('--batch_size', type=int, default=1000)  # training data collected (in the env) during each iteration
+    # DAgger 专用，收集数据批次
+    # 用途：每次迭代从环境中收集多少环境步数的数据
+    # 场景：DAgger算法中，用当前策略与环境交互收集新数据
+    # 单位：环境交互步数
+    
     parser.add_argument('--eval_batch_size', type=int,
                         default=1000)  # eval data collected (in the env) for logging metrics
+    # 用途：评估时收集多少环境步数的数据
+    # 场景：计算策略性能指标（平均回报等）
+    # 单位：环境交互步数
+    
     parser.add_argument('--train_batch_size', type=int,
                         default=100)  # number of sampled data points to be used per gradient/train step
+    # 用途：每次梯度更新从Replay Buffer中采样数据点的数量
+    # 作用：影响单次梯度更新的稳定性和计算速度，其值越大，单次梯度的估计越准，但计算也越慢。它不改变总的训练步数。
+    # 单位：(observation, action)对的数量
 
     parser.add_argument('--n_layers', type=int, default=2)  # depth, of policy to be learned
     parser.add_argument('--size', type=int, default=64)  # width of each layer, of policy to be learned
