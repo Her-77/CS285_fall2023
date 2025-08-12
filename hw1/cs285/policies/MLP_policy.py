@@ -147,7 +147,7 @@ class MLPPolicySL(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         # TODO: update the policy and return the loss
         self.optimizer.zero_grad()
         policy_distribution = self.forward(observations)
-        log_likelihood = policy_distribution.log_prob(actions)
+        log_likelihood = policy_distribution.log_prob(actions)  # 专家的动作在我们策略的分布下的log概率密度
         loss = -log_likelihood.mean()  
         # 等价于 loss = -log_likelihood.sum(dim=1).mean()
         # 首先计算每一个数据点，对应的完整的多维专家动作的“总对数似然”，(batch_size, action_dim) —> (batch_size,)
