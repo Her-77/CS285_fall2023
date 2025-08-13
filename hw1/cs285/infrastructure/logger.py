@@ -27,57 +27,58 @@ class Logger:
         assert len(video_frames.shape) == 5, "Need [N, T, C, H, W] input tensor for video logging!"
         self._summ_writer.add_video('{}'.format(name), video_frames, step, fps=fps)
 
-    # def log_paths_as_videos(self, paths, step, max_videos_to_save=2, fps=10, video_title='video'):
-
-    #     # reshape the rollouts
-    #     videos = [np.transpose(p['image_obs'], [0, 3, 1, 2]) for p in paths]
-
-    #     # max rollout length
-    #     max_videos_to_save = np.min([max_videos_to_save, len(videos)])
-    #     max_length = videos[0].shape[0]
-    #     for i in range(max_videos_to_save):
-    #         if videos[i].shape[0]>max_length:
-    #             max_length = videos[i].shape[0]
-
-    #     # pad rollouts to all be same length
-    #     for i in range(max_videos_to_save):
-    #         if videos[i].shape[0]<max_length:
-    #             padding = np.tile([videos[i][-1]], (max_length-videos[i].shape[0],1,1,1))
-    #             videos[i] = np.concatenate([videos[i], padding], 0)
-
-    #     # log videos to tensorboard event file
-    #     videos = np.stack(videos[:max_videos_to_save], 0)
-    #     self.log_video(videos, video_title, step, fps=fps)
-    
     def log_paths_as_videos(self, paths, step, max_videos_to_save=2, fps=10, video_title='video'):
 
-        # ================================================================= #
-        #                      --- 诊断代码开始 ---                         #
-        # ================================================================= #
-        print("--- [Diagnostics] Trying to save one video directly with moviepy ---")
-        try:
-            # 取出第一条轨迹的图像帧 (形状应该是 T, H, W, C)
-            one_video_frames = paths[0]['image_obs']
+        # reshape the rollouts
+        videos = [np.transpose(p['image_obs'], [0, 3, 1, 2]) for p in paths]
 
-            # 确保有帧可以保存
-            if len(one_video_frames) > 0:
-                # 定义一个临时的输出文件名
-                temp_video_path = os.path.join(self._log_dir, "direct_save_test.mp4")
+        # max rollout length
+        max_videos_to_save = np.min([max_videos_to_save, len(videos)])
+        max_length = videos[0].shape[0]
+        for i in range(max_videos_to_save):
+            if videos[i].shape[0]>max_length:
+                max_length = videos[i].shape[0]
 
-                # 使用 moviepy 直接创建视频剪辑并写入文件
-                clip = ImageSequenceClip(list(one_video_frames), fps=fps)
-                clip.write_videofile(temp_video_path, verbose=True, logger=None)
-                print(f"--- [Diagnostics] Successfully saved test video to: {temp_video_path} ---")
-            else:
-                print("--- [Diagnostics] Error: 'image_obs' list is empty. No frames to save. ---")
+        # pad rollouts to all be same length
+        for i in range(max_videos_to_save):
+            if videos[i].shape[0]<max_length:
+                padding = np.tile([videos[i][-1]], (max_length-videos[i].shape[0],1,1,1))
+                videos[i] = np.concatenate([videos[i], padding], 0)
 
-        except Exception as e:
-            print("--- [Diagnostics] moviepy direct save FAILED with an error: ---")
-            print(e)
-            print("-----------------------------------------------------------------")
-        # ================================================================= #
-        #                       --- 诊断代码结束 ---                        #
-        # ================================================================= #
+        # log videos to tensorboard event file
+        videos = np.stack(videos[:max_videos_to_save], 0)
+        self.log_video(videos, video_title, step, fps=fps)
+    
+    # def log_paths_as_videos(self, paths, step, max_videos_to_save=2, fps=10, video_title='video'):
+    #     # 之前在data文件夹下没有看到.mp4文件，以为是代码出错了，所以写了下面一段代码在data目录下保存视频文件，
+    #     # 但是实际上视频保存在.local文件中，之前的log_paths_as_videos代码没问题。
+    #     # ================================================================= #
+    #     #                      --- 诊断代码开始 ---                         #
+    #     # ================================================================= #
+    #     print("--- [Diagnostics] Trying to save one video directly with moviepy ---")
+    #     try:
+    #         # 取出第一条轨迹的图像帧 (形状应该是 T, H, W, C)
+    #         one_video_frames = paths[0]['image_obs']
+
+    #         # 确保有帧可以保存
+    #         if len(one_video_frames) > 0:
+    #             # 定义一个临时的输出文件名
+    #             temp_video_path = os.path.join(self._log_dir, "direct_save_test.mp4")
+
+    #             # 使用 moviepy 直接创建视频剪辑并写入文件
+    #             clip = ImageSequenceClip(list(one_video_frames), fps=fps)
+    #             clip.write_videofile(temp_video_path, verbose=True, logger=None)
+    #             print(f"--- [Diagnostics] Successfully saved test video to: {temp_video_path} ---")
+    #         else:
+    #             print("--- [Diagnostics] Error: 'image_obs' list is empty. No frames to save. ---")
+
+    #     except Exception as e:
+    #         print("--- [Diagnostics] moviepy direct save FAILED with an error: ---")
+    #         print(e)
+    #         print("-----------------------------------------------------------------")
+    #     # ================================================================= #
+    #     #                       --- 诊断代码结束 ---                        #
+    #     # ================================================================= #
 
     def log_figures(self, figure, name, step, phase):
         """figure: matplotlib.pyplot figure handle"""
