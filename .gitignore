@@ -129,3 +129,6 @@ dmypy.json
 .pyre/
 .DS_Store
 .gitignore
+
+# Ignore data directories in all homework folders
+hw*/data/

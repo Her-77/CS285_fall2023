@@ -79,13 +79,13 @@ class PGAgent(nn.Module):
         )
 
         # step 3: use all datapoints (s_t, a_t, adv_t) to update the PG actor/policy
-        # TODO: update the PG actor/policy network once using the advantages
-        info: dict = self.actor.update(obs, actions, advantages)
+        # TODO: update the PG actor/policy network once using the advantages 
+        info: dict = self.actor.update(obs, actions, advantages)    # 更新 actor，只更新一次，因为策略梯度是 on-policy 算法，理论上用过一次的数据就应该丢弃，以避免偏差。
 
         # step 4: if needed, use all datapoints (s_t, a_t, q_t) to update the PG critic/baseline
         if self.critic is not None:
             # TODO: perform `self.baseline_gradient_steps` updates to the critic/baseline network
-            for _ in range(self.baseline_gradient_steps):
+            for _ in range(self.baseline_gradient_steps):           # 更新 critic，用一个 for 循环更新 critic 多次，critic 的学习是一个标准的监督学习回归任务：输入是状态 s，目标是拟合 q_values (也就是 Reward-To-Go)。对于一个固定的数据集 (s, q_values)，我们可以反复训练模型来更好地拟合它，这和我们用同一批图片训练一个图像分类器很多个 epoch 是一个道理。
                 critic_info: dict = self.critic.update(obs, q_values)
 
             info.update(critic_info)
